@@ -273,13 +273,15 @@ class PushTEnv(gym.Env):
             state = np.array(options.get("reset_to_state"))
         else:
             # we use the env's RNG instead of global np.random
-            state = np.array([
-                self.np_random.integers(50, 450),
-                self.np_random.integers(50, 450),
-                self.np_random.integers(100, 400),
-                self.np_random.integers(100, 400),
-                self.np_random.uniform(-np.pi, np.pi),
-            ])
+            state = np.array(
+                [
+                    self.np_random.integers(50, 450),
+                    self.np_random.integers(50, 450),
+                    self.np_random.integers(100, 400),
+                    self.np_random.integers(100, 400),
+                    self.np_random.uniform(-np.pi, np.pi),
+                ]
+            )
         self._set_state(state)
 
         observation = self.get_obs()
