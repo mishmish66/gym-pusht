@@ -4,20 +4,6 @@ A gymnasium environment PushT.
 
 <img src="http://remicadene.com/assets/gif/pusht_diffusion.gif" width="50%" alt="Diffusion policy on PushT env"/>
 
-
-## Installation
-
-Create a virtual environment with Python 3.10 and activate it, e.g. with [`miniconda`](https://docs.anaconda.com/free/miniconda/index.html):
-```bash
-conda create -y -n pusht python=3.10 && conda activate pusht
-```
-
-Install gym-pusht:
-```bash
-pip install gym-pusht
-```
-
-
 ## Quick start
 
 ```python
