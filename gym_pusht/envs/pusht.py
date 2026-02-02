@@ -1,6 +1,7 @@
 import collections
 import os
 import warnings
+from typing import Any, Literal
 
 import cv2
 import gymnasium as gym
@@ -8,7 +9,9 @@ import numpy as np
 
 with warnings.catch_warnings():
     # Filter out DeprecationWarnings raised from pkg_resources
-    warnings.filterwarnings("ignore", "pkg_resources is deprecated as an API", category=DeprecationWarning)
+    warnings.filterwarnings(
+        "ignore", "pkg_resources is deprecated as an API", category=DeprecationWarning
+    )
     import pygame
 
 import pymunk
@@ -138,8 +141,11 @@ class PushTEnv(gym.Env):
 
     def __init__(
         self,
-        obs_type="state",
-        render_mode="rgb_array",
+        obs_type: Literal["state"]
+        | Literal["environment_state_agent_pos"]
+        | Literal["pixels"]
+        | Literal["pixels_agent_pos"] = "state",
+        render_mode: Literal["rgb_array"] | Literal["human"] = "rgb_array",
         block_cog=None,
         damping=None,
         observation_width=96,
@@ -208,7 +214,10 @@ class PushTEnv(gym.Env):
             )
         elif self.obs_type == "pixels":
             self.observation_space = spaces.Box(
-                low=0, high=255, shape=(self.observation_height, self.observation_width, 3), dtype=np.uint8
+                low=0,
+                high=255,
+                shape=(self.observation_height, self.observation_width, 3),
+                dtype=np.uint8,
             )
         elif self.obs_type == "pixels_agent_pos":
             self.observation_space = spaces.Dict(
@@ -241,6 +250,7 @@ class PushTEnv(gym.Env):
         return intersection_area / goal_area
 
     def step(self, action):
+        cov_before = self._get_coverage()
         self.n_contact_points = 0
         n_steps = int(1 / (self.dt * self.control_hz))
         self._last_action = action
@@ -257,8 +267,13 @@ class PushTEnv(gym.Env):
 
         # Compute reward
         coverage = self._get_coverage()
-        reward = np.clip(coverage / self.success_threshold, 0.0, 1.0)
+        reward = cov_change = coverage - cov_before
+
+        # reward = np.clip(coverage / self.success_threshold, 0.0, 1.0) - 1
         terminated = is_success = coverage > self.success_threshold
+
+        if terminated:
+            reward += 10.0
 
         observation = self.get_obs()
         info = self._get_info()
@@ -268,7 +283,12 @@ class PushTEnv(gym.Env):
         truncated = False
         return observation, reward, terminated, truncated, info
 
-    def reset(self, seed=None, options=None):
+    def reset(
+        self,
+        *,
+        seed: int | None = None,
+        options: dict[str, Any] | None = None,
+    ):
         super().reset(seed=seed)
         self._setup()
 
@@ -306,7 +326,10 @@ class PushTEnv(gym.Env):
         goal_body = self.get_goal_pose_body(self.goal_pose)
         for shape in self.block.shapes:
             goal_points = [goal_body.local_to_world(v) for v in shape.get_vertices()]
-            goal_points = [pymunk.pygame_util.to_pygame(point, draw_options.surface) for point in goal_points]
+            goal_points = [
+                pymunk.pygame_util.to_pygame(point, draw_options.surface)
+                for point in goal_points
+            ]
             goal_points += [goal_points[0]]
             pygame.draw.polygon(screen, pygame.Color("LightGreen"), goal_points)
 
@@ -345,7 +368,9 @@ class PushTEnv(gym.Env):
         screen = self._draw()  # draw the environment on a screen
 
         if self.render_mode == "rgb_array":
-            return self._get_img(screen, width=width, height=height, render_action=visualize)
+            return self._get_img(
+                screen, width=width, height=height, render_action=visualize
+            )
         elif self.render_mode == "human":
             if self.window is None:
                 pygame.init()
@@ -358,7 +383,9 @@ class PushTEnv(gym.Env):
                 screen, screen.get_rect()
             )  # copy our drawings from `screen` to the visible window
             pygame.event.pump()
-            self.clock.tick(self.metadata["render_fps"] * int(1 / (self.dt * self.control_hz)))
+            self.clock.tick(
+                self.metadata["render_fps"] * int(1 / (self.dt * self.control_hz))
+            )
             pygame.display.update()
         else:
             raise ValueError(self.render_mode)
@@ -373,7 +400,9 @@ class PushTEnv(gym.Env):
 
         def act(obs):
             act = None
-            mouse_position = pymunk.pygame_util.from_pygame(Vec2d(*pygame.mouse.get_pos()), self.screen)
+            mouse_position = pymunk.pygame_util.from_pygame(
+                Vec2d(*pygame.mouse.get_pos()), self.screen
+            )
             if self.teleop or (mouse_position - self.agent.position).length < 30:
                 self.teleop = True
                 act = mouse_position
@@ -386,7 +415,9 @@ class PushTEnv(gym.Env):
             agent_position = np.array(self.agent.position)
             block_position = np.array(self.block.position)
             block_angle = self.block.angle % (2 * np.pi)
-            return np.concatenate([agent_position, block_position, [block_angle]], dtype=np.float64)
+            return np.concatenate(
+                [agent_position, block_position, [block_angle]], dtype=np.float64
+            )
 
         if self.obs_type == "environment_state_agent_pos":
             return {
@@ -423,6 +454,7 @@ class PushTEnv(gym.Env):
             "block_pose": np.array(list(self.block.position) + [self.block.angle]),
             "goal_pose": self.goal_pose,
             "n_contacts": n_contact_points_per_step,
+            "coverage": self._get_coverage(),
         }
         return info
 
@@ -470,7 +502,9 @@ class PushTEnv(gym.Env):
     def add_segment(space, a, b, radius):
         # TODO(rcadene): rename add_segment to make_segment, since it is not added to the space
         shape = pymunk.Segment(space.static_body, a, b, radius)
-        shape.color = pygame.Color("LightGray")  # https://htmlcolorcodes.com/color-names
+        shape.color = pygame.Color(
+            "LightGray"
+        )  # https://htmlcolorcodes.com/color-names
         return shape
 
     @staticmethod
@@ -510,7 +544,9 @@ class PushTEnv(gym.Env):
         shape2.color = pygame.Color(color)
         shape1.filter = pymunk.ShapeFilter(mask=mask)
         shape2.filter = pymunk.ShapeFilter(mask=mask)
-        body.center_of_gravity = (shape1.center_of_gravity + shape2.center_of_gravity) / 2
+        body.center_of_gravity = (
+            shape1.center_of_gravity + shape2.center_of_gravity
+        ) / 2
         body.angle = angle
         body.position = position
         body.friction = 1
